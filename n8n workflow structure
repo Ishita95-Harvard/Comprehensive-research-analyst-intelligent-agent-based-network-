@@ -1,0 +1,2 @@
+[Webhook/Trigger] → [Data Ingestion Nodes] → [Data Cleaning Nodes] → 
+[Data Validation] → [Database Storage] → [Quality Report]
