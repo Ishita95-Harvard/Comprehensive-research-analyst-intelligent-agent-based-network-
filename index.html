@@ -1,0 +1,1956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAWM Intelligence Command Center</title>
+    
+    <!-- Libraries -->
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    
+    <style>
+        :root {
+            /* RAWM Luxury Color Palette */
+            --primary: #000814; /* Deep Navy Black */
+            --secondary: #001d3d; /* Navy Blue */
+            --accent: #ffd60a; /* Gold Accent */
+            --accent-light: #ffea80; /* Light Gold */
+            --accent-dark: #cca300; /* Dark Gold */
+            --success: #38b000; /* Emerald Green */
+            --warning: #ff9100; /* Amber */
+            --danger: #dc2f02; /* Crimson Red */
+            --text: #f8f9fa; /* Pure White */
+            --text-secondary: #adb5bd; /* Light Gray */
+            --text-muted: #6c757d; /* Medium Gray */
+            --card-bg: rgba(13, 27, 42, 0.8); /* Transparent Navy */
+            --card-border: rgba(255, 214, 10, 0.15); /* Gold Border */
+            --chart-gradient: linear-gradient(135deg, #ffd60a 0%, #ff9100 100%);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+        
+        body {
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(255, 214, 10, 0.05) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(56, 176, 0, 0.03) 0%, transparent 50%),
+                linear-gradient(135deg, #000814 0%, #001d3d 100%);
+            color: var(--text);
+            overflow: hidden;
+            height: 100vh;
+            user-select: none;
+        }
+        
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 260px 1fr 320px;
+            grid-template-rows: 70px 1fr 220px;
+            height: 100vh;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(0, 8, 20, 0.3);
+            backdrop-filter: blur(20px);
+        }
+        
+        /* Header */
+        .header {
+            grid-column: 1 / -1;
+            background: linear-gradient(90deg, rgba(0, 29, 61, 0.9) 0%, rgba(0, 20, 41, 0.9) 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            border: 1px solid var(--card-border);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 214, 10, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 18px;
+            color: var(--primary);
+            box-shadow: 0 4px 12px rgba(255, 214, 10, 0.3);
+        }
+        
+        .logo h1 {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        
+        .logo-subtitle {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            position: relative;
+        }
+        
+        .status-dot::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: -4px;
+            right: -4px;
+            bottom: -4px;
+            border-radius: 50%;
+            background: var(--success);
+            opacity: 0.4;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.4; }
+            70% { transform: scale(1.5); opacity: 0; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        
+        /* Left Panel */
+        .left-panel {
+            grid-row: 2;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .panel-title {
+            font-size: 12px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: var(--accent);
+            border-radius: 2px;
+        }
+        
+        .agent-card {
+            background: linear-gradient(135deg, rgba(13, 27, 42, 0.8) 0%, rgba(0, 29, 61, 0.6) 100%);
+            padding: 16px;
+            border-radius: 12px;
+            border-left: 4px solid var(--accent);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .agent-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 214, 10, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .agent-card:hover {
+            transform: translateX(8px);
+            border-color: var(--accent-light);
+            box-shadow: 0 8px 24px rgba(255, 214, 10, 0.15);
+        }
+        
+        .agent-card:hover::before {
+            left: 100%;
+        }
+        
+        .agent-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .agent-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text);
+            letter-spacing: 0.3px;
+        }
+        
+        .agent-indicator {
+            font-size: 8px;
+            color: var(--success);
+        }
+        
+        .agent-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        
+        .metric-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .metric-value {
+            color: var(--accent);
+            font-weight: 600;
+            font-size: 12px;
+        }
+        
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .action-btn {
+            padding: 10px 12px;
+            background: linear-gradient(135deg, rgba(255, 214, 10, 0.1) 0%, rgba(255, 145, 0, 0.1) 100%);
+            border: 1px solid rgba(255, 214, 10, 0.3);
+            color: var(--accent);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .action-btn:hover {
+            background: linear-gradient(135deg, rgba(255, 214, 10, 0.2) 0%, rgba(255, 145, 0, 0.2) 100%);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 214, 10, 0.2);
+        }
+        
+        /* Center Panel */
+        .center-panel {
+            grid-row: 2;
+            display: grid;
+            grid-template-rows: 1fr 220px;
+            gap: 12px;
+        }
+        
+        .map-container {
+            background: var(--card-bg);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--card-border);
+            position: relative;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+            border-radius: 16px;
+        }
+        
+        .map-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 29, 61, 0.9);
+            padding: 12px;
+            border-radius: 12px;
+            display: flex;
+            gap: 8px;
+            z-index: 1;
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(10px);
+        }
+        
+        .map-control-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, rgba(255, 214, 10, 0.15) 0%, rgba(255, 145, 0, 0.15) 100%);
+            border: 1px solid rgba(255, 214, 10, 0.3);
+            color: var(--accent);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .map-control-btn.active {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            color: var(--primary);
+            border-color: var(--accent);
+        }
+        
+        .map-control-btn:hover {
+            background: linear-gradient(135deg, rgba(255, 214, 10, 0.25) 0%, rgba(255, 145, 0, 0.25) 100%);
+            transform: translateY(-2px);
+        }
+        
+        .ticker-container {
+            background: var(--card-bg);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--card-border);
+            position: relative;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .ticker {
+            display: flex;
+            height: 100%;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .ticker::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        }
+        
+        .ticker-item {
+            padding: 16px 24px;
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            min-width: 280px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: linear-gradient(90deg, transparent, rgba(255, 214, 10, 0.02), transparent);
+            transition: all 0.3s ease;
+        }
+        
+        .ticker-item:hover {
+            background: linear-gradient(90deg, transparent, rgba(255, 214, 10, 0.1), transparent);
+        }
+        
+        .ticker-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            color: var(--primary);
+            font-weight: 700;
+        }
+        
+        .ticker-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .ticker-title {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .ticker-value {
+            font-size: 16px;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        /* Right Panel */
+        .right-panel {
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        
+        .kpi-card {
+            background: linear-gradient(135deg, rgba(13, 27, 42, 0.8) 0%, rgba(0, 29, 61, 0.6) 100%);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--chart-gradient);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+        
+        .kpi-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+            box-shadow: 
+                0 12px 32px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(255, 214, 10, 0.2);
+        }
+        
+        .kpi-card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        
+        .kpi-title {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            font-weight: 600;
+        }
+        
+        .kpi-hotkey {
+            font-size: 10px;
+            background: rgba(255, 214, 10, 0.1);
+            padding: 4px 8px;
+            border-radius: 6px;
+            color: var(--accent);
+            font-weight: 600;
+            border: 1px solid rgba(255, 214, 10, 0.2);
+        }
+        
+        .kpi-value {
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, var(--text) 0%, var(--accent-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        
+        .kpi-trend {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+        }
+        
+        .trend-up {
+            color: var(--success);
+        }
+        
+        .trend-down {
+            color: var(--danger);
+        }
+        
+        .trend-icon {
+            font-size: 14px;
+        }
+        
+        .alerts-container {
+            flex: 1;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--card-border);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .alert-item {
+            padding: 16px;
+            background: linear-gradient(135deg, rgba(220, 47, 2, 0.1) 0%, rgba(255, 107, 107, 0.05) 100%);
+            border-radius: 12px;
+            border-left: 4px solid var(--danger);
+            animation: slideInRight 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .alert-item.warning {
+            background: linear-gradient(135deg, rgba(255, 145, 0, 0.1) 0%, rgba(255, 195, 0, 0.05) 100%);
+            border-left-color: var(--warning);
+        }
+        
+        .alert-item.success {
+            background: linear-gradient(135deg, rgba(56, 176, 0, 0.1) 0%, rgba(100, 200, 0, 0.05) 100%);
+            border-left-color: var(--success);
+        }
+        
+        .alert-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .alert-time {
+            font-size: 10px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .alert-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .alert-badge.critical {
+            background: rgba(220, 47, 2, 0.2);
+            color: var(--danger);
+        }
+        
+        .alert-badge.warning {
+            background: rgba(255, 145, 0, 0.2);
+            color: var(--warning);
+        }
+        
+        .alert-badge.info {
+            background: rgba(255, 214, 10, 0.2);
+            color: var(--accent);
+        }
+        
+        /* Bottom Panel */
+        .bottom-panel {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, rgba(13, 27, 42, 0.9) 0%, rgba(0, 29, 61, 0.9) 100%);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--card-border);
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+        
+        .metric-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 16px;
+            background: rgba(0, 29, 61, 0.5);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 214, 10, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .metric-item:hover {
+            border-color: rgba(255, 214, 10, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(255, 214, 10, 0.1);
+        }
+        
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .metric-label::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+        
+        .metric-value {
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .metric-change {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        .metric-change.positive {
+            background: rgba(56, 176, 0, 0.2);
+            color: var(--success);
+        }
+        
+        .metric-change.negative {
+            background: rgba(220, 47, 2, 0.2);
+            color: var(--danger);
+        }
+        
+        /* Animations */
+        @keyframes slideInRight {
+            from { 
+                opacity: 0; 
+                transform: translateX(20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateX(0); 
+            }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 1400px) {
+            .dashboard-container {
+                grid-template-columns: 240px 1fr;
+                grid-template-rows: 70px 1fr 220px 240px;
+            }
+            
+            .right-panel {
+                grid-column: 1 / -1;
+                grid-row: 3;
+                flex-direction: row;
+            }
+            
+            .kpi-grid {
+                flex: 2;
+            }
+            
+            .alerts-container {
+                flex: 1;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 29, 61, 0.5);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, var(--accent-light) 0%, var(--accent) 100%);
+        }
+        
+        /* Selection Styling */
+        ::selection {
+            background: rgba(255, 214, 10, 0.3);
+            color: var(--text);
+        }
+        
+        /* Focus Outline */
+        *:focus {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">R</div>
+                <div>
+                    <h1>RAWM INTELLIGENCE COMMAND CENTER</h1>
+                    <div class="logo-subtitle">Real-time Asset & Wealth Management</div>
+                </div>
+            </div>
+            <div class="status-indicator">
+                <div class="status-item">
+                    <div class="status-dot"></div>
+                    <span id="marketStatus">Market: <strong style="color: var(--success);">OPEN</strong></span>
+                </div>
+                <div class="status-item">
+                    <span>Last Update: </span>
+                    <span id="updateTime" style="color: var(--accent); font-weight: 600;">--:--:--</span>
+                </div>
+                <div class="status-item">
+                    <span>Active Clients: </span>
+                    <span id="clientCount" style="color: var(--accent); font-weight: 600;">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Left Panel - Agent Status -->
+        <div class="left-panel">
+            <div class="panel-title">Intelligent Agents</div>
+            
+            <div class="agent-card" data-agent="1">
+                <div class="agent-status">
+                    <span class="agent-name">Data Cleaner Pro</span>
+                    <span class="agent-indicator">●</span>
+                </div>
+                <div class="agent-metrics">
+                    <div class="metric-item">
+                        <div>Queue</div>
+                        <div class="metric-value" id="agent1Queue">0</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Success</div>
+                        <div class="metric-value" id="agent1Success">100%</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Last Run</div>
+                        <div class="metric-value" id="agent1LastRun">0s ago</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Accuracy</div>
+                        <div class="metric-value" id="agent1Accuracy">99.9%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="agent-card" data-agent="2">
+                <div class="agent-status">
+                    <span class="agent-name">Market Gap Detector</span>
+                    <span class="agent-indicator">●</span>
+                </div>
+                <div class="agent-metrics">
+                    <div class="metric-item">
+                        <div>Gaps Found</div>
+                        <div class="metric-value" id="agent2Gaps">12</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Accuracy</div>
+                        <div class="metric-value" id="agent2Accuracy">98.7%</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Last Run</div>
+                        <div class="metric-value" id="agent2LastRun">0s ago</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Opportunities</div>
+                        <div class="metric-value" id="agent2Opps">5</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="agent-card" data-agent="3">
+                <div class="agent-status">
+                    <span class="agent-name">Competitor Intelligence</span>
+                    <span class="agent-indicator">●</span>
+                </div>
+                <div class="agent-metrics">
+                    <div class="metric-item">
+                        <div>Competitors</div>
+                        <div class="metric-value" id="agent3Competitors">8</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Alerts</div>
+                        <div class="metric-value" id="agent3Alerts">3</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Last Run</div>
+                        <div class="metric-value" id="agent3LastRun">0s ago</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Insights</div>
+                        <div class="metric-value" id="agent3Insights">24</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="agent-card" data-agent="4">
+                <div class="agent-status">
+                    <span class="agent-name">Property Intelligence</span>
+                    <span class="agent-indicator">●</span>
+                </div>
+                <div class="agent-metrics">
+                    <div class="metric-item">
+                        <div>Properties</div>
+                        <div class="metric-value" id="agent4Properties">42</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Occupancy</div>
+                        <div class="metric-value" id="agent4Occupancy">96.3%</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Last Run</div>
+                        <div class="metric-value" id="agent4LastRun">0s ago</div>
+                    </div>
+                    <div class="metric-item">
+                        <div>Avg ROI</div>
+                        <div class="metric-value" id="agent4ROI">16.8%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="quick-actions">
+                <button class="action-btn" onclick="controlAgent('startAll')">
+                    <span>▶</span> Start All
+                </button>
+                <button class="action-btn" onclick="controlAgent('pauseAll')">
+                    <span>⏸</span> Pause All
+                </button>
+            </div>
+        </div>
+        
+        <!-- Center Panel - Map & Ticker -->
+        <div class="center-panel">
+            <div class="map-container">
+                <div class="map-overlay">
+                    <button class="map-control-btn active" onclick="toggleLayer('properties')" id="btnProperties">Properties</button>
+                    <button class="map-control-btn" onclick="toggleLayer('competitors')" id="btnCompetitors">Competitors</button>
+                    <button class="map-control-btn" onclick="toggleLayer('gaps')" id="btnGaps">Market Gaps</button>
+                    <button class="map-control-btn" onclick="toggleLayer('heatmap')" id="btnHeatmap">Heatmap</button>
+                </div>
+                <div id="map"></div>
+            </div>
+            
+            <div class="ticker-container">
+                <div class="ticker" id="ticker">
+                    <!-- Ticker items will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Panel - KPIs & Alerts -->
+        <div class="right-panel">
+            <div class="kpi-grid" id="kpiGrid">
+                <!-- KPI Cards will be populated by JavaScript -->
+            </div>
+            
+            <div class="alerts-container" id="alertsContainer">
+                <div class="alert-item warning">
+                    <div class="alert-title">
+                        <strong>Market Alert</strong>
+                        <div>
+                            <span class="alert-badge warning">Warning</span>
+                            <span class="alert-time">Just now</span>
+                        </div>
+                    </div>
+                    <div>Significant price movement detected in Downtown luxury segment</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bottom Panel - System Metrics -->
+        <div class="bottom-panel">
+            <div class="metric-item">
+                <div class="metric-label">Data Quality Score</div>
+                <div class="metric-value">
+                    <span id="dataQuality">99.7%</span>
+                    <span class="metric-change positive">+0.1%</span>
+                </div>
+            </div>
+            
+            <div class="metric-item">
+                <div class="metric-label">Analysis Accuracy</div>
+                <div class="metric-value">
+                    <span id="analysisAccuracy">98.5%</span>
+                    <span class="metric-change positive">+0.2%</span>
+                </div>
+            </div>
+            
+            <div class="metric-item">
+                <div class="metric-label">Report Timeliness</div>
+                <div class="metric-value">
+                    <span id="reportTimeliness">99.9%</span>
+                    <span class="metric-change positive">+0.1%</span>
+                </div>
+            </div>
+            
+            <div class="metric-item">
+                <div class="metric-label">System Uptime</div>
+                <div class="metric-value">
+                    <span id="systemUptime">99.99%</span>
+                    <span class="metric-change positive">↑ 0.01%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mapbox Configuration
+        mapboxgl.accessToken = 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4M29iazA2Z2gycXA4N2pmbDZmangifQ.-g_vE53SD2WrJ6tFX7QHmA';
+        
+        // Initialize Map with RAWM style
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/dark-v10',
+            center: [-74.0060, 40.7128], // New York City
+            zoom: 11,
+            pitch: 45,
+            bearing: -17.6
+        });
+        
+        // WebSocket Connection
+        const socket = io('wss://dashboard.rawm-wealth.com', {
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
+        });
+        
+        // Global State
+        const state = {
+            agents: {
+                1: { lastRun: Date.now(), queue: 0, success: 100, accuracy: 99.9 },
+                2: { lastRun: Date.now(), gaps: 12, accuracy: 98.7, opportunities: 5 },
+                3: { lastRun: Date.now(), competitors: 8, alerts: 3, insights: 24 },
+                4: { lastRun: Date.now(), properties: 42, occupancy: 96.3, roi: 16.8 }
+            },
+            kpis: {},
+            alerts: [],
+            tickerItems: [],
+            mapLayers: {
+                properties: true,
+                competitors: false,
+                gaps: false,
+                heatmap: true
+            }
+        };
+        
+        // Initialize Dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initKPIs();
+            initTicker();
+            initMapLayers();
+            initSocketListeners();
+            updateTime();
+            setInterval(updateTime, 1000);
+            setInterval(updateAgentMetrics, 3000);
+            setInterval(updateTicker, 5000);
+            setupKeyboardShortcuts();
+            
+            // Simulate initial data
+            simulateDataUpdates();
+        });
+        
+        // Initialize KPI Cards
+        function initKPIs() {
+            const kpiGrid = document.getElementById('kpiGrid');
+            const kpis = [
+                { 
+                    id: 'marketGrowth', 
+                    title: 'Market Growth', 
+                    value: '7.2%', 
+                    change: '+0.3%', 
+                    trend: 'up', 
+                    hotkey: 'F1',
+                    icon: '📈'
+                },
+                { 
+                    id: 'portfolioValue', 
+                    title: 'Portfolio Value', 
+                    value: '$4.2B', 
+                    change: '+$120M', 
+                    trend: 'up', 
+                    hotkey: 'F11',
+                    icon: '💰'
+                },
+                { 
+                    id: 'avgROI', 
+                    title: 'Avg ROI', 
+                    value: '16.8%', 
+                    change: '+1.2%', 
+                    trend: 'up', 
+                    hotkey: 'F8',
+                    icon: '📊'
+                },
+                { 
+                    id: 'occupancyRate', 
+                    title: 'Occupancy Rate', 
+                    value: '96.3%', 
+                    change: '+0.5%', 
+                    trend: 'up', 
+                    hotkey: 'F7',
+                    icon: '🏠'
+                },
+                { 
+                    id: 'sentimentScore', 
+                    title: 'Market Sentiment', 
+                    value: '78/100', 
+                    change: '-2', 
+                    trend: 'down', 
+                    hotkey: 'F6',
+                    icon: '😊'
+                },
+                { 
+                    id: 'competitorIndex', 
+                    title: 'Competitor Index', 
+                    value: '145.2', 
+                    change: '+2.4', 
+                    trend: 'up', 
+                    hotkey: 'F2',
+                    icon: '🎯'
+                }
+            ];
+            
+            kpis.forEach(kpi => {
+                const card = document.createElement('div');
+                card.className = 'kpi-card';
+                card.dataset.kpi = kpi.id;
+                card.innerHTML = `
+                    <div class="kpi-header">
+                        <div class="kpi-title">${kpi.icon} ${kpi.title}</div>
+                        <div class="kpi-hotkey">${kpi.hotkey}</div>
+                    </div>
+                    <div class="kpi-value">${kpi.value}</div>
+                    <div class="kpi-trend ${kpi.trend === 'up' ? 'trend-up' : 'trend-down'}">
+                        <span class="trend-icon">${kpi.trend === 'up' ? '↗' : '↘'}</span>
+                        ${kpi.change}
+                    </div>
+                `;
+                card.onclick = () => showKpiDetail(kpi.id);
+                kpiGrid.appendChild(card);
+                
+                // Store in state
+                state.kpis[kpi.id] = kpi;
+            });
+        }
+        
+        // Initialize Ticker
+        function initTicker() {
+            const ticker = document.getElementById('ticker');
+            const items = [
+                { icon: '🏢', title: 'Downtown Luxury', value: '+2.4%', type: 'market' },
+                { icon: '💼', title: 'Commercial REIT', value: '-1.2%', type: 'market' },
+                { icon: '🏠', title: 'Suburban Premium', value: '+0.8%', type: 'market' },
+                { icon: '🌴', title: 'Vacation Properties', value: '+3.1%', type: 'market' },
+                { icon: '📈', title: 'Market Volume', value: '↑ 12%', type: 'volume' },
+                { icon: '🎯', title: 'New Opportunity', value: 'High ROI', type: 'opportunity' },
+                { icon: '⚡', title: 'Agent Activity', value: '24 Updates', type: 'system' },
+                { icon: '🔔', title: 'Active Alerts', value: '3 Critical', type: 'alert' }
+            ];
+            
+            items.forEach((item, index) => {
+                const tickerItem = document.createElement('div');
+                tickerItem.className = 'ticker-item';
+                tickerItem.dataset.type = item.type;
+                
+                const color = item.type === 'market' ? (item.value.includes('+') ? 'var(--success)' : 'var(--danger)') :
+                             item.type === 'opportunity' ? 'var(--accent)' :
+                             item.type === 'alert' ? 'var(--warning)' : 'var(--accent-light)';
+                
+                tickerItem.innerHTML = `
+                    <div class="ticker-icon" style="background: linear-gradient(135deg, ${color} 0%, ${color}99 100%);">
+                        ${item.icon}
+                    </div>
+                    <div class="ticker-content">
+                        <div class="ticker-title">${item.title}</div>
+                        <div class="ticker-value" style="--ticker-color: ${color}">${item.value}</div>
+                    </div>
+                `;
+                ticker.appendChild(tickerItem);
+                state.tickerItems.push(tickerItem);
+            });
+            
+            // Start ticker animation
+            animateTicker();
+        }
+        
+        // Initialize Map Layers
+        function initMapLayers() {
+            map.on('load', () => {
+                // Add RAWM-themed heatmap layer
+                map.addSource('heatmap', {
+                    type: 'geojson',
+                    data: generateHeatmapData()
+                });
+                
+                map.addLayer({
+                    id: 'heatmap-layer',
+                    type: 'heatmap',
+                    source: 'heatmap',
+                    paint: {
+                        'heatmap-weight': ['interpolate', ['linear'], ['get', 'value'], 0, 0, 6, 1],
+                        'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 9, 3],
+                        'heatmap-color': [
+                            'interpolate',
+                            ['linear'],
+                            ['heatmap-density'],
+                            0, 'rgba(255, 214, 10, 0)',
+                            0.2, 'rgba(255, 214, 10, 0.2)',
+                            0.4, 'rgba(255, 214, 10, 0.4)',
+                            0.6, 'rgba(255, 214, 10, 0.6)',
+                            0.8, 'rgba(255, 214, 10, 0.8)',
+                            1, 'rgba(255, 214, 10, 1)'
+                        ],
+                        'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 2, 9, 25],
+                        'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 7, 0.8, 9, 0.3]
+                    }
+                });
+                
+                // Add property markers with RAWM gold theme
+                map.addSource('properties', {
+                    type: 'geojson',
+                    data: generatePropertyData()
+                });
+                
+                map.addLayer({
+                    id: 'properties-layer',
+                    type: 'circle',
+                    source: 'properties',
+                    paint: {
+                        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4, 15, 10],
+                        'circle-color': 'var(--accent)',
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#ffffff',
+                        'circle-opacity': 0.8,
+                        'circle-blur': 0.2
+                    }
+                });
+                
+                // Add competitor markers
+                map.addSource('competitors', {
+                    type: 'geojson',
+                    data: generateCompetitorData()
+                });
+                
+                map.addLayer({
+                    id: 'competitors-layer',
+                    type: 'circle',
+                    source: 'competitors',
+                    paint: {
+                        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, 15, 8],
+                        'circle-color': 'var(--warning)',
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#ffffff',
+                        'circle-opacity': 0.7
+                    }
+                });
+                
+                // Add market gaps layer
+                map.addSource('gaps', {
+                    type: 'geojson',
+                    data: generateMarketGaps()
+                });
+                
+                map.addLayer({
+                    id: 'gaps-layer',
+                    type: 'fill',
+                    source: 'gaps',
+                    paint: {
+                        'fill-color': 'var(--success)',
+                        'fill-opacity': 0.15,
+                        'fill-outline-color': 'var(--success)'
+                    }
+                });
+                
+                // Set initial visibility
+                updateLayerVisibility();
+                
+                // Add popup on click
+                map.on('click', 'properties-layer', (e) => {
+                    const properties = e.features[0].properties;
+                    new mapboxgl.Popup()
+                        .setLngLat(e.lngLat)
+                        .setHTML(`
+                            <div style="color: var(--primary); padding: 16px; min-width: 250px; font-family: 'Inter', sans-serif;">
+                                <h4 style="margin: 0 0 12px 0; color: var(--accent-dark); font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 20px;">${properties.icon}</span>
+                                    ${properties.name}
+                                </h4>
+                                <div style="display: grid; gap: 6px; font-size: 13px;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span style="color: var(--text-secondary);">Value:</span>
+                                        <span style="color: var(--accent-dark); font-weight: 600;">${properties.value}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span style="color: var(--text-secondary);">ROI:</span>
+                                        <span style="color: var(--success); font-weight: 600;">${properties.roi}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span style="color: var(--text-secondary);">Type:</span>
+                                        <span style="color: var(--primary); background: var(--accent-light); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${properties.type}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `)
+                        .addTo(map);
+                });
+            });
+        }
+        
+        // Initialize Socket Listeners
+        function initSocketListeners() {
+            socket.on('connect', () => {
+                console.log('Connected to RAWM WebSocket server');
+                document.querySelector('.status-dot').style.background = 'var(--success)';
+                showNotification('Connected to real-time data stream', 'success');
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from WebSocket server');
+                document.querySelector('.status-dot').style.background = 'var(--danger)';
+                showNotification('Connection lost - reconnecting...', 'warning');
+            });
+            
+            socket.on('market_update', (data) => {
+                updateMarketData(data);
+            });
+            
+            socket.on('agent_update', (data) => {
+                updateAgentData(data);
+            });
+            
+            socket.on('alert', (data) => {
+                addAlert(data);
+            });
+            
+            socket.on('client_count', (count) => {
+                document.getElementById('clientCount').textContent = count;
+            });
+        }
+        
+        // Update Time
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('updateTime').textContent = timeString;
+        }
+        
+        // Update Agent Metrics
+        function updateAgentMetrics() {
+            Object.keys(state.agents).forEach(agentId => {
+                const agent = state.agents[agentId];
+                const elapsed = Math.floor((Date.now() - agent.lastRun) / 1000);
+                
+                document.getElementById(`agent${agentId}LastRun`).textContent = 
+                    elapsed === 0 ? 'Just now' : `${elapsed}s ago`;
+                
+                // Simulate random updates
+                if (Math.random() > 0.7) {
+                    simulateAgentUpdate(parseInt(agentId));
+                }
+            });
+        }
+        
+        // Update Ticker
+        function updateTicker() {
+            const tickerItems = document.querySelectorAll('.ticker-item');
+            const updates = [
+                { value: '+2.5%', type: 'market' },
+                { value: '-0.8%', type: 'market' },
+                { value: '+1.2%', type: 'market' },
+                { value: '+3.5%', type: 'market' },
+                { value: '↑ 15%', type: 'volume' },
+                { value: 'New!', type: 'opportunity' },
+                { value: '12 Updates', type: 'system' },
+                { value: '2 Critical', type: 'alert' }
+            ];
+            
+            tickerItems.forEach((item, index) => {
+                if (Math.random() > 0.5) {
+                    const update = updates[index % updates.length];
+                    const valueElement = item.querySelector('.ticker-value');
+                    
+                    // Store old value for animation
+                    const oldValue = valueElement.textContent;
+                    valueElement.textContent = update.value;
+                    
+                    // Update color based on value
+                    let color = 'var(--accent)';
+                    if (update.type === 'market') {
+                        color = update.value.includes('+') ? 'var(--success)' : 'var(--danger)';
+                    } else if (update.type === 'alert') {
+                        color = 'var(--warning)';
+                    }
+                    
+                    valueElement.style.color = color;
+                    
+                    // Animate update
+                    item.style.animation = 'none';
+                    setTimeout(() => {
+                        item.style.animation = 'fadeIn 0.5s ease';
+                    }, 10);
+                }
+            });
+        }
+        
+        // Animate Ticker
+        function animateTicker() {
+            const ticker = document.getElementById('ticker');
+            let position = 0;
+            const speed = 0.5;
+            
+            function moveTicker() {
+                position -= speed;
+                if (position < -280) {
+                    position = 0;
+                    const firstChild = ticker.firstElementChild;
+                    ticker.appendChild(firstChild.cloneNode(true));
+                    ticker.removeChild(firstChild);
+                }
+                ticker.style.transform = `translateX(${position}px)`;
+                requestAnimationFrame(moveTicker);
+            }
+            
+            moveTicker();
+        }
+        
+        // Control Agent
+        function controlAgent(action) {
+            const actions = {
+                startAll: () => {
+                    showNotification('Starting all intelligent agents...', 'info');
+                    socket.emit('agent_control', { action: 'start_all' });
+                    
+                    // Visual feedback
+                    document.querySelectorAll('.agent-card').forEach(card => {
+                        card.style.borderLeftColor = 'var(--success)';
+                        setTimeout(() => {
+                            card.style.borderLeftColor = 'var(--accent)';
+                        }, 1000);
+                    });
+                },
+                pauseAll: () => {
+                    showNotification('Pausing all agents...', 'warning');
+                    socket.emit('agent_control', { action: 'pause_all' });
+                    
+                    // Visual feedback
+                    document.querySelectorAll('.agent-card').forEach(card => {
+                        card.style.borderLeftColor = 'var(--warning)';
+                        setTimeout(() => {
+                            card.style.borderLeftColor = 'var(--accent)';
+                        }, 1000);
+                    });
+                }
+            };
+            
+            if (actions[action]) {
+                actions[action]();
+            }
+        }
+        
+        // Toggle Map Layer
+        function toggleLayer(layer) {
+            state.mapLayers[layer] = !state.mapLayers[layer];
+            const button = document.getElementById(`btn${layer.charAt(0).toUpperCase() + layer.slice(1)}`);
+            
+            if (state.mapLayers[layer]) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
+            
+            updateLayerVisibility();
+            
+            showNotification(`${layer.charAt(0).toUpperCase() + layer.slice(1)} layer ${state.mapLayers[layer] ? 'enabled' : 'disabled'}`, 'info');
+        }
+        
+        // Update Layer Visibility
+        function updateLayerVisibility() {
+            Object.keys(state.mapLayers).forEach(layer => {
+                const visibility = state.mapLayers[layer] ? 'visible' : 'none';
+                if (map.getLayer(`${layer}-layer`)) {
+                    map.setLayoutProperty(`${layer}-layer`, 'visibility', visibility);
+                }
+            });
+        }
+        
+        // Show KPI Detail
+        function showKpiDetail(kpiId) {
+            const kpi = state.kpis[kpiId];
+            
+            // Highlight the clicked card
+            const cards = document.querySelectorAll('.kpi-card');
+            cards.forEach(card => card.style.boxShadow = 'none');
+            const clickedCard = document.querySelector(`[data-kpi="${kpiId}"]`);
+            clickedCard.style.boxShadow = '0 0 0 3px var(--accent)';
+            setTimeout(() => {
+                clickedCard.style.boxShadow = '';
+            }, 1000);
+            
+            showNotification(`Opening detailed analysis for ${kpi.title}: ${kpi.value}`, 'info');
+        }
+        
+        // Add Alert
+        function addAlert(alert) {
+            const alertsContainer = document.getElementById('alertsContainer');
+            const alertElement = document.createElement('div');
+            
+            const alertClass = alert.priority === 'critical' ? '' : 
+                              alert.priority === 'warning' ? 'warning' : 'success';
+            
+            const badgeText = alert.priority === 'critical' ? 'Critical' :
+                             alert.priority === 'warning' ? 'Warning' : 'Info';
+            
+            const badgeClass = alert.priority === 'critical' ? 'critical' :
+                              alert.priority === 'warning' ? 'warning' : 'info';
+            
+            alertElement.className = `alert-item ${alertClass}`;
+            alertElement.innerHTML = `
+                <div class="alert-title">
+                    <strong>${alert.title}</strong>
+                    <div>
+                        <span class="alert-badge ${badgeClass}">${badgeText}</span>
+                        <span class="alert-time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                    </div>
+                </div>
+                <div>${alert.message}</div>
+            `;
+            
+            alertsContainer.insertBefore(alertElement, alertsContainer.firstChild);
+            
+            // Limit to 8 alerts
+            if (alertsContainer.children.length > 8) {
+                alertsContainer.removeChild(alertsContainer.lastChild);
+            }
+            
+            // Play sound for critical alerts
+            if (alert.priority === 'critical') {
+                playAlertSound();
+            }
+        }
+        
+        // Show Notification
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 24px;
+                right: 24px;
+                background: ${type === 'success' ? 'rgba(56, 176, 0, 0.9)' : 
+                            type === 'warning' ? 'rgba(255, 145, 0, 0.9)' : 
+                            type === 'danger' ? 'rgba(220, 47, 2, 0.9)' : 
+                            'rgba(0, 29, 61, 0.9)'};
+                color: white;
+                padding: 16px 24px;
+                border-radius: 12px;
+                border-left: 4px solid ${type === 'success' ? 'var(--success)' : 
+                                     type === 'warning' ? 'var(--warning)' : 
+                                     type === 'danger' ? 'var(--danger)' : 'var(--accent)'};
+                z-index: 10000;
+                animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                font-weight: 500;
+                max-width: 400px;
+                backdrop-filter: blur(10px);
+                border: 1px solid ${type === 'success' ? 'rgba(56, 176, 0, 0.3)' : 
+                                 type === 'warning' ? 'rgba(255, 145, 0, 0.3)' : 
+                                 type === 'danger' ? 'rgba(220, 47, 2, 0.3)' : 
+                                 'rgba(255, 214, 10, 0.3)'};
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Remove after 4 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 4000);
+        }
+        
+        // Play Alert Sound
+        function playAlertSound() {
+            // Create a short beep sound using Web Audio API
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (e) {
+                console.log('Web Audio API not supported');
+            }
+        }
+        
+        // Setup Keyboard Shortcuts
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                // Function keys for KPIs
+                if (e.key >= 'F1' && e.key <= 'F12') {
+                    e.preventDefault();
+                    const kpiIndex = parseInt(e.key.replace('F', '')) - 1;
+                    const kpiCards = document.querySelectorAll('.kpi-card');
+                    if (kpiCards[kpiIndex]) {
+                        kpiCards[kpiIndex].click();
+                        kpiCards[kpiIndex].style.transform = 'scale(0.95)';
+                        setTimeout(() => {
+                            kpiCards[kpiIndex].style.transform = '';
+                        }, 300);
+                    }
+                }
+                
+                // Control shortcuts
+                if (e.altKey) {
+                    switch(e.key.toLowerCase()) {
+                        case 'd':
+                            e.preventDefault();
+                            document.querySelector('[data-agent="1"]').click();
+                            break;
+                        case 'f':
+                            e.preventDefault();
+                            document.querySelector('[data-agent="2"]').click();
+                            break;
+                        case 'c':
+                            e.preventDefault();
+                            document.querySelector('[data-agent="3"]').click();
+                            break;
+                        case 'p':
+                            e.preventDefault();
+                            document.querySelector('[data-agent="4"]').click();
+                            break;
+                        case 's':
+                            e.preventDefault();
+                            controlAgent('startAll');
+                            break;
+                        case 'x':
+                            e.preventDefault();
+                            controlAgent('pauseAll');
+                            break;
+                        case 'm':
+                            e.preventDefault();
+                            toggleLayer('map');
+                            break;
+                    }
+                }
+                
+                // Escape to clear
+                if (e.key === 'Escape') {
+                    document.querySelectorAll('.kpi-card').forEach(card => {
+                        card.style.transform = '';
+                        card.style.boxShadow = '';
+                    });
+                }
+            });
+        }
+        
+        // Generate Sample Data
+        function generateHeatmapData() {
+            const features = [];
+            const center = [-74.0060, 40.7128];
+            
+            for (let i = 0; i < 150; i++) {
+                const lng = center[0] + (Math.random() - 0.5) * 0.3;
+                const lat = center[1] + (Math.random() - 0.5) * 0.3;
+                const value = Math.random() * 10;
+                
+                features.push({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [lng, lat]
+                    },
+                    properties: {
+                        value: value
+                    }
+                });
+            }
+            
+            return {
+                type: 'FeatureCollection',
+                features: features
+            };
+        }
+        
+        function generatePropertyData() {
+            return {
+                type: 'FeatureCollection',
+                features: [
+                    {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [-74.0060, 40.7128]
+                        },
+                        properties: {
+                            name: 'Luxury Tower Penthouse',
+                            value: '$12.5M',
+                            roi: '18.2%',
+                            type: 'Luxury Residential',
+                            icon: '🏢'
+                        }
+                    },
+                    {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [-74.0100, 40.7150]
+                        },
+                        properties: {
+                            name: 'Commercial Plaza',
+                            value: '$45M',
+                            roi: '12.8%',
+                            type: 'Commercial',
+                            icon: '💼'
+                        }
+                    },
+                    {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [-73.9850, 40.7280]
+                        },
+                        properties: {
+                            name: 'Waterfront Estate',
+                            value: '$28.7M',
+                            roi: '15.3%',
+                            type: 'Premium Residential',
+                            icon: '🏠'
+                        }
+                    }
+                ]
+            };
+        }
+        
+        function generateCompetitorData() {
+            return {
+                type: 'FeatureCollection',
+                features: [
+                    {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [-74.0020, 40.7100]
+                        },
+                        properties: {
+                            name: 'Competitor A HQ'
+                        }
+                    },
+                    {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [-74.0150, 40.7080]
+                        },
+                        properties: {
+                            name: 'Competitor B Tower'
+                        }
+                    },
+                    {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [-73.9950, 40.7050]
+                        },
+                        properties: {
+                            name: 'Competitor C Offices'
+                        }
+                    }
+                ]
+            };
+        }
+        
+        function generateMarketGaps() {
+            return {
+                type: 'FeatureCollection',
+                features: [
+                    {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[
+                                [-74.02, 40.71],
+                                [-74.01, 40.71],
+                                [-74.01, 40.72],
+                                [-74.02, 40.72],
+                                [-74.02, 40.71]
+                            ]]
+                        },
+                        properties: {
+                            name: 'High-Growth Opportunity Zone'
+                        }
+                    }
+                ]
+            };
+        }
+        
+        // Simulate Data Updates (for demo)
+        function simulateDataUpdates() {
+            setInterval(() => {
+                // Update random KPI
+                const kpiIds = Object.keys(state.kpis);
+                const randomKpiId = kpiIds[Math.floor(Math.random() * kpiIds.length)];
+                const kpi = state.kpis[randomKpiId];
+                
+                if (Math.random() > 0.7) {
+                    const changeValue = (Math.random() * 0.5).toFixed(1);
+                    const isPositive = Math.random() > 0.3;
+                    const change = `${isPositive ? '+' : '-'}${changeValue}${kpi.id.includes('Rate') || kpi.id.includes('ROI') ? '%' : kpi.id.includes('Value') ? 'M' : ''}`;
+                    const trend = isPositive ? 'up' : 'down';
+                    
+                    // Update DOM
+                    const kpiCards = document.querySelectorAll('.kpi-card');
+                    const cardIndex = Object.keys(state.kpis).indexOf(randomKpiId);
+                    const trendElement = kpiCards[cardIndex].querySelector('.kpi-trend');
+                    
+                    trendElement.innerHTML = `
+                        <span class="trend-icon">${trend === 'up' ? '↗' : '↘'}</span>
+                        ${change}
+                    `;
+                    trendElement.className = `kpi-trend ${trend === 'up' ? 'trend-up' : 'trend-down'}`;
+                    
+                    // Update state
+                    kpi.change = change;
+                    kpi.trend = trend;
+                }
+                
+                // Simulate occasional alerts
+                if (Math.random() > 0.95) {
+                    const alerts = [
+                        { 
+                            title: 'Market Opportunity', 
+                            message: 'New luxury development opportunity in emerging district', 
+                            priority: 'warning' 
+                        },
+                        { 
+                            title: 'Competitor Alert', 
+                            message: 'Major competitor launched new luxury portfolio', 
+                            priority: 'warning' 
+                        },
+                        { 
+                            title: 'Property Update', 
+                            message: 'Maintenance completed for UHNI property #42', 
+                            priority: 'success' 
+                        },
+                        { 
+                            title: 'Data Anomaly', 
+                            message: 'Unusual activity detected in market data stream', 
+                            priority: 'critical' 
+                        },
+                        { 
+                            title: 'Portfolio Growth', 
+                            message: 'Portfolio value increased by $2.4M this week', 
+                            priority: 'success' 
+                        }
+                    ];
+                    
+                    const alert = alerts[Math.floor(Math.random() * alerts.length)];
+                    addAlert(alert);
+                }
+            }, 10000); // Update every 10 seconds
+        }
+        
+        function simulateAgentUpdate(agentId) {
+            const metrics = {
+                1: () => {
+                    const queue = Math.floor(Math.random() * 50);
+                    const success = (99 + Math.random()).toFixed(1);
+                    document.getElementById('agent1Queue').textContent = queue;
+                    document.getElementById('agent1Success').textContent = `${success}%`;
+                    document.getElementById('agent1Accuracy').textContent = `${(99.5 + Math.random() * 0.5).toFixed(1)}%`;
+                },
+                2: () => {
+                    const gaps = 10 + Math.floor(Math.random() * 8);
+                    const opps = 3 + Math.floor(Math.random() * 4);
+                    document.getElementById('agent2Gaps').textContent = gaps;
+                    document.getElementById('agent2Accuracy').textContent = `${(97 + Math.random() * 3).toFixed(1)}%`;
+                    document.getElementById('agent2Opps').textContent = opps;
+                },
+                3: () => {
+                    const alerts = Math.floor(Math.random() * 6);
+                    const insights = 20 + Math.floor(Math.random() * 10);
+                    document.getElementById('agent3Alerts').textContent = alerts;
+                    document.getElementById('agent3Insights').textContent = insights;
+                },
+                4: () => {
+                    const occupancy = 94 + Math.random() * 4;
+                    const roi = 15 + Math.random() * 3;
+                    document.getElementById('agent4Occupancy').textContent = `${occupancy.toFixed(1)}%`;
+                    document.getElementById('agent4ROI').textContent = `${roi.toFixed(1)}%`;
+                }
+            };
+            
+            if (metrics[agentId]) {
+                metrics[agentId]();
+                state.agents[agentId].lastRun = Date.now();
+            }
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            map.resize();
+        });
+        
+        // Add subtle background animation
+        function createBackgroundAnimation() {
+            const canvas = document.createElement('canvas');
+            canvas.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: -1;
+                opacity: 0.05;
+            `;
+            document.body.appendChild(canvas);
+            
+            const ctx = canvas.getContext('2d');
+            let width = canvas.width = window.innerWidth;
+            let height = canvas.height = window.innerHeight;
+            
+            const particles = [];
+            const particleCount = 30;
+            
+            // Create particles
+            for (let i = 0; i < particleCount; i++) {
+                particles.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    size: Math.random() * 2 + 1,
+                    speedX: Math.random() * 0.5 - 0.25,
+                    speedY: Math.random() * 0.5 - 0.25,
+                    color: Math.random() > 0.5 ? 'rgba(255, 214, 10, 0.3)' : 'rgba(56, 176, 0, 0.3)'
+                });
+            }
+            
+            function animate() {
+                ctx.clearRect(0, 0, width, height);
+                
+                particles.forEach(particle => {
+                    particle.x += particle.speedX;
+                    particle.y += particle.speedY;
+                    
+                    // Bounce off edges
+                    if (particle.x < 0 || particle.x > width) particle.speedX *= -1;
+                    if (particle.y < 0 || particle.y > height) particle.speedY *= -1;
+                    
+                    // Draw particle
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                    ctx.fillStyle = particle.color;
+                    ctx.fill();
+                });
+                
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+            
+            // Handle resize
+            window.addEventListener('resize', () => {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+            });
+        }
+        
+        // Initialize background animation
+        createBackgroundAnimation();
+    </script>
+</body>
+</html>
